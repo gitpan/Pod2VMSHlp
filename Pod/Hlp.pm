@@ -1,6 +1,6 @@
 package Pod::Hlp;
 
-$VERSION = '1.01';
+$VERSION = '1.02';
 
 # based on Tom C's:
 #package Pod::Text;
@@ -33,10 +33,6 @@ through the C<LIBRARY/HELP/REPLACE> system call, or via the use of the
 C<pod2hlb> script supplied with the kit.  A separate F<pod2hlp> program 
 is included that is primarily a wrapper for Pod::Hlp.
 
-Termcap is optionally supported for boldface/underline, and can enabled 
-via C<$Pod::Text::termcap=1>. If termcap has not been enabled, then 
-backspaces will be used to simulate bold and underlined text.
-
 The single function C<pod2hlp()> can take one, two, or three arguments. 
 The first should be the name of a file to read the pod from, or "<&STDIN" 
 to read from STDIN.   A second argument, if provided, should be an 
@@ -54,21 +50,15 @@ Tom Christiansen E<lt>tchrist@mox.perl.comE<gt>
 
 =head1 TODO
 
-Cleanup work.  OUTPUT formats need cleaning up, VT escapes should
-be substituted for the Term::Cap ones.  The input and output 
-locations need to be more flexible, termcap shouldn't be a global 
-variable, and the terminal speed needs to be properly calculated.
+Cleanup work.  VT escapes should be substituted for the 
+Term::Cap ones.  The input and output locations need to be more 
+flexible.
 
 =cut
 
-use Term::Cap;
 require Exporter;
 @ISA = Exporter;
-@EXPORT = qw(pod2text);
-
-$termcap=0;
-
-#$use_format=1;
+#@EXPORT = qw(pod2text);
 
 $UNDL = "\x1b[4m";
 $INV = "\x1b[7m";
@@ -88,22 +78,7 @@ $head2_level = $head1_level + 1;
 $last_cmd = $hlp_level;
 *OUTPUT = *STDOUT if @_<3;
 
-if($termcap and !$setuptermcap) {
-	$setuptermcap=1;
-
-    my($term) = Tgetent Term::Cap { TERM => undef, OSPEED => 9600 };
-    $UNDL = $term->{'_us'};
-    $INV = $term->{'_mr'};
-    $BOLD = $term->{'_md'};
-    $NORM = $term->{'_me'};
-}
-
 $SCREEN = 72;
-#$SCREEN = ($_[0] =~ /^-(\d+)/ && (shift, $1))
-#       || ($ENV{TERMCAP} =~ /co#(\d+)/)[0]
-#       ||  $ENV{COLUMNS}
-#       || (`stty -a 2>/dev/null` =~ /(\d+) columns/)[0]
-#       || 72;
 
 $/ = "";
 
@@ -152,8 +127,13 @@ sub prepare_for_output {
         # s/[CB]<(.*?)>/bold($1)/ge;
 	s/X<.*?>//g;
 	# LREF: a manpage(3f)
-	s:L<([a-zA-Z][^\s\/]+)(\([^\)]+\))?>:the $1$2 help page:g;
-#	s:L<([a-zA-Z][^\s\/]+)(\([^\)]+\))?>:the $1 help page:g;
+	m:L<([a-zA-Z][^\s\/]+)(\([^\)]+\))?>:;
+	if (defined($2)) {
+	    s:L<([a-zA-Z][^\s\/]+)(\([^\)]+\))?>:the $1$2 help page:g;
+	}
+	else {
+	    s:L<([a-zA-Z][^\s\/]+)(\([^\)]+\))?>:the $1 help page:g;
+	}
 	# LREF: an =item on another manpage
 	s{
 	    L<
@@ -238,8 +218,8 @@ sub prepare_for_output {
 #   as either delimiters (space, horizontal tab, and comma) or
 #   comments (exclamation point).
             if ($hlp_line =~ s/[\ \t\r\f]+/'_'/eg) {  #\s would match \n
-                $hlp_line =~ s/^[\_]//;               #trim lead
-                $hlp_line =~ s/\_$//;                 #trim trail
+                $hlp_line =~ s/^[_]//;               #trim lead
+                $hlp_line =~ s/_$//;                 #trim trail
             }
             chomp($hlp_line);
             $hlp_line = "$last_cmd $hlp_line\n";
@@ -253,12 +233,13 @@ sub prepare_for_output {
 	    s/(\w)/\xA7 $1/ if $FANCY;
             $hlp_line = $_;
             if ($hlp_line =~ s/[\ \t\r\f]+/'_'/eg) {  #\s would match \n
-                $hlp_line =~ s/^[\_]//;               #trim lead
-                $hlp_line =~ s/\_$//;                 #trim trail
+                $hlp_line =~ s/^[_]//;               #trim lead
+                $hlp_line =~ s/_$//;                 #trim trail
             }
             chomp($hlp_line);
 
-# perlpod.pod only allows for =head1 and =head2, nevertheless
+# perlpod.pod only allows for =head1 and =head2 (N.B. relaxed
+# with more recent pod specs), nevertheless
 # VMS librarian does not like to make n+2 jumps, which
 # could still occur if the file began with =head2 e.g.:
             if (($head2_level - $last_cmd)<=1) { 
@@ -328,24 +309,14 @@ sub makespace {
 sub bold {
     my $line = shift;
     return $line if $use_format;
-    if($termcap) {
-    	$line = "$BOLD$line$NORM";
-    } else {
-	    $line =~ s/(.)/$1\b$1/g;
-	}
-#    $line = "$BOLD$line$NORM" if $ansify;
+    $line =~ s/(.)/$1\b$1/g;
     return $line;
 }
 
 sub italic {
     my $line = shift;
     return $line if $use_format;
-    if($termcap) {
-    	$line = "$UNDL$line$NORM";
-    } else {
-	    $line =~ s/(.)/$1\b_/g;
-    }
-#    $line = "$UNDL$line$NORM" if $ansify;
+    $line =~ s/(.)/$1\b_/g;
     return $line;
 }
 
@@ -401,7 +372,13 @@ sub IP_output {
 	. "^" .  ("<" x ($cols - 5)) . "\n"
 	. '$_' . "\n\n.\n1";
     #warn $str; warn "tag is $tag, _ is $_";
-    eval $str || die;
+    {
+     # Avoid "redefined OUTPUT format" warnings.
+     # perldiag in 5.6.1 recommends no warnings pragma but this works
+     # with 5.005_03
+        local $^W = 0;
+        eval $str || die;
+    }
     write OUTPUT;
 }
 
@@ -416,7 +393,13 @@ sub output {
 	    . (" " x ($indent-2))
 	    . "^" .  ("<" x ($cols - 5)) . "\n"
 	    . '$_' . "\n\n.\n1";
-	eval $str || die;
+        {
+         # Avoid "redefined OUTPUT format" warnings.
+         # perldiag in 5.6.1 recommends no warnings pragma but this works
+         # with 5.005_03
+            local $^W = 0;
+	    eval $str || die;
+        }
 	write OUTPUT;
     } else {
 	s/^/' ' x $indent/gem;
@@ -434,7 +417,7 @@ sub noremap {
 sub init_noremap {
     die "unmatched init" if $mapready++;
     if ( /[\200-\377]/ ) {
-	warn "hit bit char in input stream";
+	warn "hi bit char in input stream";
     }
 }
 
@@ -487,6 +470,8 @@ BEGIN {
     'lt'	=>	'<',	#   left chevron, less-than
     'gt'	=>	'>',	#   right chevron, greater-than
     'quot'	=>	'"',	#   double quote
+    'sol'	=>	'/',	#   solidus or forward slash
+    'verbar'	=>	'|',	#   vertical bar or pipe
 
     "Aacute"	=>	"\xC1",	#   capital A, acute accent
     "aacute"	=>	"\xE1",	#   small a, acute accent
@@ -522,8 +507,8 @@ BEGIN {
     "igrave"	=>	"\xED",	#   small i, grave accent
     "Iuml"	=>	"\xCF",	#   capital I, dieresis or umlaut mark
     "iuml"	=>	"\xEF",	#   small i, dieresis or umlaut mark
-    "Ntilde"	=>	"\xD1",		#   capital N, tilde
-    "ntilde"	=>	"\xF1",		#   small n, tilde
+    "Ntilde"	=>	"\xD1",	#   capital N, tilde
+    "ntilde"	=>	"\xF1",	#   small n, tilde
     "Oacute"	=>	"\xD3",	#   capital O, acute accent
     "oacute"	=>	"\xF3",	#   small o, acute accent
     "Ocirc"	=>	"\xD4",	#   capital O, circumflex accent
@@ -536,7 +521,7 @@ BEGIN {
     "otilde"	=>	"\xF5",	#   small o, tilde
     "Ouml"	=>	"\xD6",	#   capital O, dieresis or umlaut mark
     "ouml"	=>	"\xF6",	#   small o, dieresis or umlaut mark
-    "szlig"	=>	"\xDF",		#   small sharp s, German (sz ligature)
+    "szlig"	=>	"\xDF",	#   small sharp s, German (sz ligature)
     "THORN"	=>	"\xDE",	#   capital THORN, Icelandic
     "thorn"	=>	"\xFE",	#   small thorn, Icelandic
     "Uacute"	=>	"\xDA",	#   capital U, acute accent
