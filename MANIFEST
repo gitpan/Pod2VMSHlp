@@ -1,0 +1,13 @@
+Changes
+Makefile.PL
+MANIFEST
+MANIFEST.Skip
+Pod/Hlp.pm
+README
+pod2hlp
+pod2hlb
+t/script.t
+t/script.s
+t/testpod0.pod
+t/testpod0.ref
+t/testpod1.ref

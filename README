@@ -1,0 +1,114 @@
+
+=head1 NAME
+
+Pod2VMSHlp - a pod to VMS Help format converter
+
+=head1 INSTALLATION
+
+Follow the usual 4 line mantra after building and 
+installing perl, that is:
+
+    perl Makefile.PL
+    mms
+    perl [.t]script.t   ! rather than "mms test"
+    mms install
+
+Note that with Perl 5.005_02 "mms test" may not work with this
+module for unknown reasons.  You should however, expect to obtain:
+
+    perl [.t]script.t
+    1..4
+    ok 1
+    ok 2
+    ok 3
+    ok 4
+
+If you see message(s) about a missing Test or Test::Harness module then
+try running:
+
+    perl [.t]script.s
+
+where the result should be as for script.t above and any other 
+result is cause for alarm :-)
+
+By the way, this is a simple (i.e. non XS based) module 
+that can still be installed "by hand" if you have neither 
+MMS (from DECSet) nor MMK (free from MadGoat) installed.
+Just be sure to copy [.Pod]Hlp.pm right into
+
+   perl_root:[lib.pod]Hlp.pm
+
+You might also want to COPY the pod2hlp. program into:
+
+   perl_root:[lib.pod]pod2hlp.
+
+And run that script from there (more information is 
+in the L<SAMPLE SCRIPTS> section below).
+
+=head1 DOCUMENTATION
+
+Is available in pod in the Pod::Hlp package.  Type:
+
+    perldoc Pod::Hlp 
+
+for more, or convert it to .HLP, stick it in a .HLB and
+type HELP POD HLP for more information.
+
+=head1 SAMPLE SCRIPTS
+
+Included with the Pod2VMSHlp package are two scripts that 
+will help you to turn files containing pod into VMS HLP 
+files and/or HLB libraries:
+
+=over 4
+
+=item * pod2hlp
+
+Usage is: C<perl pod2hlp. filename.pod n> where C<n> is the level
+that you want filename.hlp to be, e.g. the default is '1' so that:
+
+     filename.pod           1 filename
+     =head1 Foo             2 Foo
+     =head2 Bar             3 Bar
+
+but this could be overridden with:
+
+     perl pod2hlp. filename.pod 3
+
+to obtain:
+
+     filename.pod           3 filename
+     =head1 Foo             4 Foo
+     =head2 Bar             5 Bar
+
+Warning: The help librarian has strict requirements on the
+order of section headings.  Hence pod2hlp may map some 
+C<=head1> and C<=head2>'s differently depending on whether 
+they are (or follow) frequently seen headers like "NAME", 
+"AUTHOR", I<etc>.  The basic rule is don't put a C<=head2>
+at the start of a pod file, try a C<=head1> instead.
+Also try to avoid C<=headN> for N >= 3.  This latter is 
+a pod rule (see L<perlpod>) that is enforced by Pod::Hlp.
+
+=item * pod2hlb
+
+Usage is: C<perl pod2hlb.> this will take all the F<perl*.pod> files
+in F<perl_root:[lib.pod]> and turn them into F<perl*.hlp> files (at help
+levels 1,2,3) and create a new help library F<PERL.HLB> all in the DEFAULT
+directory.  This script uses DCLs LIBRARY/HELP librarian.
+
+=back
+
+=head1 AUTHOR
+
+Copyright (c) 1999 by Peter Prymmer E<lt>pvhp@best.comE<gt>.  
+This package may be distributed under the same terms as perl.
+This module borrows quite heavily from Tom Christiansen's 
+Pod::Text.pm module.  The regression test was borrowed from
+Nick Ing-Simmons' PodToHTML module on CPAN. 
+
+1999-04-30 16:14:59.87 - released as Pod2VMSHlp 1.01.
+1996-08-20 15:17:29.85 - released as Pod2Hlp 1.00.
+
+=cut
+      
